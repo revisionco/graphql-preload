@@ -1,5 +1,3 @@
-# frozen_string_literal: true
-
 module GraphQL
   module Preload
     # Preloads ActiveRecord::Associations when called from the Preload::Instrument
@@ -24,7 +22,6 @@ module GraphQL
         end
 
         return Promise.resolve(record) if association_loaded?(record)
-
         super
       end
 
@@ -33,9 +30,7 @@ module GraphQL
         records.each { |record| fulfill(record, record) }
       end
 
-      private
-
-      def association_loaded?(record)
+      private def association_loaded?(record)
         record.association(association).loaded?
       end
 
@@ -44,12 +39,10 @@ module GraphQL
         return unless preload_scope
         return if Gem::Version.new(ActiveRecord::VERSION::STRING) < Gem::Version.new("6.0.0")
 
-        # See https://github.com/rails/rails/issues/36638 for details
-        # Solution adapted from https://gist.github.com/palkan/03eb5306a1a3e8addbe8df97a298a466
         if preloader.is_a?(::ActiveRecord::Associations::Preloader::AlreadyLoaded)
           raise ArgumentError,
-              "Preloading association twice is not possible. " \
-              "To resolve this add `preload #{association.inspect}` to the GraphQL field definition."
+              "Preloading association twice with scopes is not possible. " \
+              "To resolve this problem add a scoped association (e.g., `has_many :records, -> { scope_name }, ...`) to the model"
         end
 
         # this commit changes the way preloader works with scopes
@@ -59,21 +52,23 @@ module GraphQL
         end
       end
 
-      def preload_scope
+      private def preload_scope
         return nil unless scope
-
         reflection = model.reflect_on_association(association)
         raise ArgumentError, 'Cannot specify preload_scope for polymorphic associations' if reflection.polymorphic?
-
         scope if scope.try(:klass) == reflection.klass
       end
 
-      def validate_association
-        raise ArgumentError, 'Association must be a Symbol object' unless association.is_a?(Symbol)
-        raise ArgumentError, "Model #{model} must be an ActiveRecord::Base descendant" unless model < ActiveRecord::Base
+      private def validate_association
+        unless association.is_a?(Symbol)
+          raise ArgumentError, 'Association must be a Symbol object'
+        end
+
+        unless model < ActiveRecord::Base
+          raise ArgumentError, 'Model must be an ActiveRecord::Base descendant'
+        end
 
         return if model.reflect_on_association(association)
-
         raise TypeError, "Association :#{association} does not exist on #{model}"
       end
     end
